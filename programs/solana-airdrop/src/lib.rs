@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::{hash as sol_hash, hashv as sol_hashv};
+use solana_program::hash::{hash as sol_hash, hashv as sol_hashv};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("CNcG4AK4uUXsqAjKQiFk5i9zU75MdHmgdJDXa5cCgYDH");
