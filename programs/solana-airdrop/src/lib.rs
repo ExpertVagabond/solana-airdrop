@@ -38,13 +38,13 @@ pub mod solana_airdrop {
         require!(airdrop.total_claimed < airdrop.max_claims, AirdropError::MaxClaimsReached);
 
         // Verify merkle proof
-        let leaf = anchor_lang::solana_program::keccak::hash(ctx.accounts.claimer.key().as_ref());
+        let leaf = anchor_lang::solana_program::hash::hash(ctx.accounts.claimer.key().as_ref());
         let mut computed = leaf.0;
         for node in proof.iter() {
             if computed <= *node {
-                computed = anchor_lang::solana_program::keccak::hashv(&[&computed, node]).0;
+                computed = anchor_lang::solana_program::hash::hashv(&[&computed, node]).0;
             } else {
-                computed = anchor_lang::solana_program::keccak::hashv(&[node, &computed]).0;
+                computed = anchor_lang::solana_program::hash::hashv(&[node, &computed]).0;
             }
         }
         require!(computed == airdrop.merkle_root, AirdropError::InvalidProof);
