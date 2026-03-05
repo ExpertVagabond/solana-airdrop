@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::hash::{hash as sol_hash, hashv as sol_hashv};
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("CNcG4AK4uUXsqAjKQiFk5i9zU75MdHmgdJDXa5cCgYDH");
@@ -38,13 +39,13 @@ pub mod solana_airdrop {
         require!(airdrop.total_claimed < airdrop.max_claims, AirdropError::MaxClaimsReached);
 
         // Verify merkle proof
-        let leaf = anchor_lang::solana_program::hash::hash(ctx.accounts.claimer.key().as_ref());
-        let mut computed = leaf.0;
+        let leaf = sol_hash(ctx.accounts.claimer.key().as_ref());
+        let mut computed = leaf.to_bytes();
         for node in proof.iter() {
             if computed <= *node {
-                computed = anchor_lang::solana_program::hash::hashv(&[&computed, node]).0;
+                computed = sol_hashv(&[&computed, node]).to_bytes();
             } else {
-                computed = anchor_lang::solana_program::hash::hashv(&[node, &computed]).0;
+                computed = sol_hashv(&[node, &computed]).to_bytes();
             }
         }
         require!(computed == airdrop.merkle_root, AirdropError::InvalidProof);
