@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use solana_program::hash::{hash as sol_hash, hashv as sol_hashv};
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{Mint, TokenInterface, TokenAccount, TransferChecked, transfer_checked};
 
 declare_id!("FZPFToJZbiDnr74xotCMRJtCTHkpuUeaUvrgfZ7HfmMe");
 
@@ -31,14 +31,16 @@ pub mod solana_airdrop {
     }
 
     pub fn fund_airdrop(ctx: Context<FundAirdrop>, amount: u64) -> Result<()> {
-        token::transfer(CpiContext::new(
+        let decimals = ctx.accounts.mint.decimals;
+        transfer_checked(CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
-            Transfer {
+            TransferChecked {
                 from: ctx.accounts.authority_token_account.to_account_info(),
                 to: ctx.accounts.vault.to_account_info(),
                 authority: ctx.accounts.authority.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
             },
-        ), amount)?;
+        ), amount, decimals)?;
         Ok(())
     }
 
@@ -64,15 +66,17 @@ pub mod solana_airdrop {
         let bump = airdrop.bump;
         let seeds: &[&[u8]] = &[b"airdrop", authority_key.as_ref(), mint_key.as_ref(), &[bump]];
 
-        token::transfer(CpiContext::new_with_signer(
+        let decimals = ctx.accounts.mint.decimals;
+        transfer_checked(CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
-            Transfer {
+            TransferChecked {
                 from: ctx.accounts.vault.to_account_info(),
                 to: ctx.accounts.claimer_token_account.to_account_info(),
                 authority: ctx.accounts.airdrop.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
             },
             &[seeds],
-        ), airdrop.amount_per_claim)?;
+        ), airdrop.amount_per_claim, decimals)?;
 
         let claim_record = &mut ctx.accounts.claim_record;
         claim_record.airdrop = airdrop.key();
@@ -106,15 +110,17 @@ pub mod solana_airdrop {
             let bump = airdrop.bump;
             let seeds: &[&[u8]] = &[b"airdrop", authority_key.as_ref(), mint_key.as_ref(), &[bump]];
 
-            token::transfer(CpiContext::new_with_signer(
+            let decimals = ctx.accounts.mint.decimals;
+            transfer_checked(CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                TransferChecked {
                     from: ctx.accounts.vault.to_account_info(),
                     to: ctx.accounts.authority_token_account.to_account_info(),
                     authority: ctx.accounts.airdrop.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
                 },
                 &[seeds],
-            ), remaining)?;
+            ), remaining, decimals)?;
         }
         Ok(())
     }
@@ -124,15 +130,15 @@ pub mod solana_airdrop {
 pub struct CreateAirdrop<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    pub mint: Account<'info, Mint>,
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(init, payer = authority, space = 8 + Airdrop::INIT_SPACE,
         seeds = [b"airdrop", authority.key().as_ref(), mint.key().as_ref()], bump)]
     pub airdrop: Account<'info, Airdrop>,
     #[account(init, payer = authority, token::mint = mint, token::authority = airdrop,
         seeds = [b"vault", airdrop.key().as_ref()], bump)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: InterfaceAccount<'info, TokenAccount>,
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub rent: Sysvar<'info, Rent>,
 }
 
@@ -142,12 +148,14 @@ pub struct FundAirdrop<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [b"airdrop", airdrop.authority.as_ref(), airdrop.mint.as_ref()], bump = airdrop.bump, has_one = authority)]
     pub airdrop: Account<'info, Airdrop>,
+    #[account(address = airdrop.mint)]
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, seeds = [b"vault", airdrop.key().as_ref()], bump,
-        token::mint = airdrop.mint, token::authority = airdrop)]
-    pub vault: Account<'info, TokenAccount>,
+        token::mint = mint, token::authority = airdrop)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, constraint = authority_token_account.mint == airdrop.mint)]
-    pub authority_token_account: Account<'info, TokenAccount>,
-    pub token_program: Program<'info, Token>,
+    pub authority_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -156,16 +164,18 @@ pub struct Claim<'info> {
     pub claimer: Signer<'info>,
     #[account(mut, seeds = [b"airdrop", airdrop.authority.as_ref(), airdrop.mint.as_ref()], bump = airdrop.bump)]
     pub airdrop: Account<'info, Airdrop>,
+    #[account(address = airdrop.mint)]
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, seeds = [b"vault", airdrop.key().as_ref()], bump,
-        token::mint = airdrop.mint, token::authority = airdrop)]
-    pub vault: Account<'info, TokenAccount>,
+        token::mint = mint, token::authority = airdrop)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(init, payer = claimer, space = 8 + ClaimRecord::INIT_SPACE,
         seeds = [b"claim", airdrop.key().as_ref(), claimer.key().as_ref()], bump)]
     pub claim_record: Account<'info, ClaimRecord>,
     #[account(mut, constraint = claimer_token_account.mint == airdrop.mint)]
-    pub claimer_token_account: Account<'info, TokenAccount>,
+    pub claimer_token_account: InterfaceAccount<'info, TokenAccount>,
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -173,12 +183,14 @@ pub struct CloseAirdrop<'info> {
     pub authority: Signer<'info>,
     #[account(mut, has_one = authority)]
     pub airdrop: Account<'info, Airdrop>,
+    #[account(address = airdrop.mint)]
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, seeds = [b"vault", airdrop.key().as_ref()], bump,
-        token::mint = airdrop.mint, token::authority = airdrop)]
-    pub vault: Account<'info, TokenAccount>,
+        token::mint = mint, token::authority = airdrop)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
     #[account(mut, constraint = authority_token_account.mint == airdrop.mint)]
-    pub authority_token_account: Account<'info, TokenAccount>,
-    pub token_program: Program<'info, Token>,
+    pub authority_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[account]
