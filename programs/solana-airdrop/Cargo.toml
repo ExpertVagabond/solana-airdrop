@@ -24,6 +24,7 @@ custom-panic = []
 anchor-lang = "0.32.0"
 anchor-spl = "0.32.0"
 solana-program = "2"
+solana-token-vesting = { path = "../../../solana-token-vesting/programs/solana-token-vesting", features = ["cpi"] }
 
 
 [lints.rust]
