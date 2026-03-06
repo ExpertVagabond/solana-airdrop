@@ -18,6 +18,15 @@ pub mod solana_airdrop {
         airdrop.merkle_root = merkle_root;
         airdrop.active = true;
         airdrop.bump = ctx.bumps.airdrop;
+
+        emit!(AirdropCreated {
+            airdrop: airdrop.key(),
+            authority: airdrop.authority,
+            mint: airdrop.mint,
+            merkle_root,
+            max_claims,
+        });
+
         Ok(())
     }
 
@@ -74,6 +83,14 @@ pub mod solana_airdrop {
 
         let airdrop = &mut ctx.accounts.airdrop;
         airdrop.total_claimed = airdrop.total_claimed.checked_add(1).ok_or(AirdropError::Overflow)?;
+
+        emit!(AirdropClaimed {
+            airdrop: airdrop.key(),
+            claimer: ctx.accounts.claimer.key(),
+            amount: airdrop.amount_per_claim,
+            total_claimed: airdrop.total_claimed,
+        });
+
         Ok(())
     }
 
@@ -185,6 +202,23 @@ pub struct ClaimRecord {
     pub amount: u64,
     pub claimed_at: i64,
     pub bump: u8,
+}
+
+#[event]
+pub struct AirdropCreated {
+    pub airdrop: Pubkey,
+    pub authority: Pubkey,
+    pub mint: Pubkey,
+    pub merkle_root: [u8; 32],
+    pub max_claims: u64,
+}
+
+#[event]
+pub struct AirdropClaimed {
+    pub airdrop: Pubkey,
+    pub claimer: Pubkey,
+    pub amount: u64,
+    pub total_claimed: u64,
 }
 
 #[error_code]
